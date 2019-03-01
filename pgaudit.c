@@ -27,7 +27,6 @@
 #include "nodes/nodes.h"
 #include "nodes/params.h"
 #include "tcop/utility.h"
-#include "tcop/deparse_utility.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/guc.h"
@@ -36,8 +35,8 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 #include "utils/timestamp.h"
-#include "utils/varlena.h"
 
+#define LOG_SERVER_ONLY  COMMERROR
 PG_MODULE_MAGIC;
 
 void _PG_init(void);
@@ -755,8 +754,7 @@ log_audit_event(AuditEventStackItem *stackItem)
                     stackItem->auditEvent.substatementId,
                     className,
                     auditStr.data),
-                    errhidestmt(true),
-                    errhidecontext(true)));
+                    errhidestmt(true)));
 
     stackItem->auditEvent.logged = true;
 
@@ -1142,24 +1140,15 @@ log_select_dml(Oid auditOid, List *rangeTabls)
                                                ACL_SELECT);
 
                 /*
-                 * Check the insert columns
+                 * Check the insert/update columns
                  */
                 if (!auditEventStack->auditEvent.granted &&
-                    auditPerms & ACL_INSERT)
+                    auditPerms & (ACL_INSERT | ACL_UPDATE))
                     auditEventStack->auditEvent.granted =
                         audit_on_any_attribute(relOid, auditOid,
-                                               rte->insertedCols,
+                                               rte->modifiedCols,
                                                auditPerms);
 
-                /*
-                 * Check the update columns
-                 */
-                if (!auditEventStack->auditEvent.granted &&
-                    auditPerms & ACL_UPDATE)
-                    auditEventStack->auditEvent.granted =
-                        audit_on_any_attribute(relOid, auditOid,
-                                               rte->updatedCols,
-                                               auditPerms);
             }
         }
 
@@ -1353,12 +1342,12 @@ pgaudit_ExecutorCheckPerms_hook(List *rangeTabls, bool abort)
 /*
  * Hook ProcessUtility to do session auditing for DDL and utility commands.
  */
+typedef struct QueryEnvironment QueryEnvironment;
 static void
 pgaudit_ProcessUtility_hook(PlannedStmt *pstmt,
                             const char *queryString,
                             ProcessUtilityContext context,
                             ParamListInfo params,
-                            QueryEnvironment *queryEnv,
                             DestReceiver *dest,
                             char *completionTag)
 {
@@ -1402,10 +1391,10 @@ pgaudit_ProcessUtility_hook(PlannedStmt *pstmt,
     /* Call the standard process utility chain. */
     if (next_ProcessUtility_hook)
         (*next_ProcessUtility_hook) (pstmt, queryString, context, params,
-                                     queryEnv, dest, completionTag);
+                                     dest, completionTag);
     else
         standard_ProcessUtility(pstmt, queryString, context, params,
-                                queryEnv, dest, completionTag);
+                                dest, completionTag);
 
     /*
      * Process the audit event if there is one.  Also check that this event
