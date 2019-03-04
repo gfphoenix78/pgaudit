@@ -17,8 +17,9 @@
 #include "catalog/objectaccess.h"
 #include "catalog/pg_class.h"
 #include "catalog/namespace.h"
-#include "commands/dbcommands.h"
 #include "catalog/pg_proc.h"
+#include "cdb/cdbvars.h"
+#include "commands/dbcommands.h"
 #include "commands/event_trigger.h"
 #include "executor/executor.h"
 #include "executor/spi.h"
@@ -27,7 +28,6 @@
 #include "nodes/nodes.h"
 #include "nodes/params.h"
 #include "tcop/utility.h"
-#include "tcop/deparse_utility.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/guc.h"
@@ -744,8 +744,7 @@ log_audit_event(AuditEventStackItem *stackItem)
                     stackItem->auditEvent.substatementId,
                     className,
                     auditStr.data),
-                    errhidestmt(true),
-                    errhidecontext(true)));
+                    errhidestmt(true)));
 
     stackItem->auditEvent.logged = true;
 
@@ -1131,24 +1130,15 @@ log_select_dml(Oid auditOid, List *rangeTabls)
                                                ACL_SELECT);
 
                 /*
-                 * Check the insert columns
+                 * Check the modified columns
                  */
                 if (!auditEventStack->auditEvent.granted &&
-                    auditPerms & ACL_INSERT)
+                    auditPerms & (ACL_INSERT|ACL_UPDATE))
                     auditEventStack->auditEvent.granted =
                         audit_on_any_attribute(relOid, auditOid,
-                                               rte->insertedCols,
+                                               rte->modifiedCols,
                                                auditPerms);
 
-                /*
-                 * Check the update columns
-                 */
-                if (!auditEventStack->auditEvent.granted &&
-                    auditPerms & ACL_UPDATE)
-                    auditEventStack->auditEvent.granted =
-                        audit_on_any_attribute(relOid, auditOid,
-                                               rte->updatedCols,
-                                               auditPerms);
             }
         }
 
@@ -1816,6 +1806,8 @@ _PG_init(void)
 
     if (inited)
         return;
+    if (Gp_role != GP_ROLE_DISPATCH)
+        return;
 
     /* Must be loaded with shared_preload_libraries */
     if (!process_shared_preload_libraries_in_progress)
@@ -1833,7 +1825,7 @@ _PG_init(void)
 
         NULL,
         &auditLog,
-        "none",
+        "ALL",
         PGC_SUSET,
         GUC_LIST_INPUT | GUC_NOT_IN_SAMPLE,
         check_pgaudit_log,
