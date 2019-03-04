@@ -1806,8 +1806,6 @@ _PG_init(void)
 
     if (inited)
         return;
-    if (Gp_role != GP_ROLE_DISPATCH)
-        return;
 
     /* Must be loaded with shared_preload_libraries */
     if (!process_shared_preload_libraries_in_progress)
@@ -1948,6 +1946,8 @@ _PG_init(void)
         GUC_NOT_IN_SAMPLE,
         NULL, NULL, NULL);
 
+    if (Gp_role != GP_ROLE_DISPATCH)
+        return;
     /*
      * Install our hook functions after saving the existing pointers to
      * preserve the chains.
