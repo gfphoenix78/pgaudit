@@ -4,7 +4,7 @@
 CREATE EXTENSION IF NOT EXISTS pgaudit;
 
 -- Make sure events don't get logged twice when session logging
-SET pgaudit.log = 'all';
+SET pgaudit.log_classes = 'all';
 SET pgaudit.log_client = ON;
 SET pgaudit.log_level = 'notice';
 
@@ -17,7 +17,7 @@ RESET pgaudit.log_client;
 DROP TABLE tmp;
 DROP TABLE tmp2;
 
-RESET pgaudit.log;
+RESET pgaudit.log_classes;
 RESET pgaudit.log_level;
 
 --
@@ -37,7 +37,7 @@ SELECT current_user \gset
 
 --
 -- Set pgaudit parameters for the current (super)user.
-ALTER ROLE :current_user SET pgaudit.log = 'Role';
+ALTER ROLE :current_user SET pgaudit.log_classes = 'Role';
 ALTER ROLE :current_user SET pgaudit.log_level = 'notice';
 ALTER ROLE :current_user SET pgaudit.log_client = ON;
 
@@ -50,7 +50,7 @@ CREATE ROLE auditor;
 --
 -- Create first test user
 CREATE USER user1 password 'password';
-ALTER ROLE user1 SET pgaudit.log = 'ddl, ROLE';
+ALTER ROLE user1 SET pgaudit.log_classes = 'ddl, ROLE';
 ALTER ROLE user1 SET pgaudit.log_level = 'notice';
 
 ALTER ROLE user1 PassWord 'password2' NOLOGIN;
@@ -78,11 +78,11 @@ DROP TABLE test;
 \connect - :current_user
 
 CREATE ROLE user2 LOGIN password 'password';
-ALTER ROLE user2 SET pgaudit.log = 'Read, writE';
+ALTER ROLE user2 SET pgaudit.log_classes = 'Read, writE';
 ALTER ROLE user2 SET pgaudit.log_catalog = OFF;
 ALTER ROLE user2 SET pgaudit.log_client = ON;
 ALTER ROLE user2 SET pgaudit.log_level = 'warning';
-ALTER ROLE user2 SET pgaudit.role = auditor;
+ALTER ROLE user2 SET pgaudit.roles = auditor;
 ALTER ROLE user2 SET pgaudit.log_statement_once = ON;
 
 --
@@ -233,7 +233,7 @@ SELECT *
 --
 -- Change permissions of user 2 so that only object logging will be done
 \connect - :current_user
-ALTER ROLE user2 SET pgaudit.log = 'NONE';
+ALTER ROLE user2 SET pgaudit.log_classes = 'NONE';
 
 \connect - user2
 
@@ -309,7 +309,7 @@ DROP TABLE test4;
 DROP FUNCTION test2_insert();
 DROP FUNCTION test2_change(int);
 
-ALTER ROLE user1 SET pgaudit.log = 'DDL, READ';
+ALTER ROLE user1 SET pgaudit.log_classes = 'DDL, READ';
 \connect - user1
 
 --
@@ -335,8 +335,8 @@ INSERT INTO account (id, name, password, description)
 --
 -- Change permissions of user 1 so that only object logging will be done
 \connect - :current_user
-ALTER ROLE user1 SET pgaudit.log = 'none';
-ALTER ROLE user1 SET pgaudit.role = 'auditor';
+ALTER ROLE user1 SET pgaudit.log_classes = 'none';
+ALTER ROLE user1 SET pgaudit.roles = 'auditor';
 \connect - user1
 
 --
@@ -373,7 +373,7 @@ UPDATE account
 -- Change permissions of user 1 so that session relation logging will be done
 \connect - :current_user
 ALTER ROLE user1 SET pgaudit.log_relation = on;
-ALTER ROLE user1 SET pgaudit.log = 'read, WRITE';
+ALTER ROLE user1 SET pgaudit.log_classes = 'read, WRITE';
 \connect - user1
 
 --
@@ -432,7 +432,7 @@ UPDATE account
 --
 -- Change back to superuser to do exhaustive tests
 \connect - :current_user
-SET pgaudit.log = 'ALL';
+SET pgaudit.log_classes = 'ALL';
 SET pgaudit.log_level = 'notice';
 SET pgaudit.log_client = ON;
 SET pgaudit.log_relation = ON;
@@ -653,7 +653,7 @@ ALTER DATABASE contrib_regression_pgaudit RENAME TO contrib_regression_pgaudit2;
 DROP DATABASE contrib_regression_pgaudit2;
 
 -- Test role as a substmt
-SET pgaudit.log = 'ROLE';
+SET pgaudit.log_classes = 'ROLE';
 
 CREATE TABLE t ();
 CREATE ROLE alice;
@@ -668,7 +668,7 @@ drop role alice;
 
 --
 -- Test that frees a memory context earlier than expected
-SET pgaudit.log = 'ALL';
+SET pgaudit.log_classes = 'ALL';
 
 CREATE TABLE hoge
 (
@@ -691,8 +691,8 @@ SELECT test();
 
 --
 -- Delete all rows then delete 1 row
-SET pgaudit.log = 'write';
-SET pgaudit.role = 'auditor';
+SET pgaudit.log_classes = 'write';
+SET pgaudit.roles = 'auditor';
 
 create table bar
 (
@@ -716,14 +716,14 @@ drop table bar;
 
 --
 -- Grant roles to each other
-SET pgaudit.log = 'role';
+SET pgaudit.log_classes = 'role';
 GRANT user1 TO user2;
 REVOKE user1 FROM user2;
 
 --
 -- Test that FK references do not log but triggers still do
-SET pgaudit.log = 'READ,WRITE';
-SET pgaudit.role TO 'auditor';
+SET pgaudit.log_classes = 'READ,WRITE';
+SET pgaudit.roles TO 'auditor';
 
 CREATE TABLE aaa
 (
@@ -774,22 +774,22 @@ DROP TABLE tmp2;
 -- Set client_min_messages up to warning to avoid noise
 SET client_min_messages = 'warning';
 
-ALTER ROLE :current_user RESET pgaudit.log;
+ALTER ROLE :current_user RESET pgaudit.log_classes;
 ALTER ROLE :current_user RESET pgaudit.log_catalog;
 ALTER ROLE :current_user RESET pgaudit.log_client;
 ALTER ROLE :current_user RESET pgaudit.log_level;
 ALTER ROLE :current_user RESET pgaudit.log_parameter;
 ALTER ROLE :current_user RESET pgaudit.log_relation;
 ALTER ROLE :current_user RESET pgaudit.log_statement_once;
-ALTER ROLE :current_user RESET pgaudit.role;
+ALTER ROLE :current_user RESET pgaudit.roles;
 
-RESET pgaudit.log;
+RESET pgaudit.log_classes;
 RESET pgaudit.log_catalog;
 RESET pgaudit.log_level;
 RESET pgaudit.log_parameter;
 RESET pgaudit.log_relation;
 RESET pgaudit.log_statement_once;
-RESET pgaudit.role;
+RESET pgaudit.roles;
 
 DROP TABLE test.account_copy;
 DROP TABLE test.test_insert;

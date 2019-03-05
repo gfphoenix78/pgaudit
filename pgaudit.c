@@ -1824,7 +1824,7 @@ _PG_init(void)
 
     /* Define pgaudit.log */
     DefineCustomStringVariable(
-        "pgaudit.log",
+        "pgaudit.log_classes",
 
         "Specifies which classes of statements will be logged by session audit "
         "logging. Multiple classes can be provided using a comma-separated "
@@ -1942,7 +1942,7 @@ _PG_init(void)
 
     /* Define pgaudit.role */
     DefineCustomStringVariable(
-        "pgaudit.role",
+        "pgaudit.roles",
 
         "Specifies the master role to use for object audit logging.  Muliple "
         "audit roles can be defined by granting them to the master role. This "
